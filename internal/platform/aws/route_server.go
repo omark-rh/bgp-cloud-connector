@@ -99,6 +99,11 @@ func (p *Platform) reconcileRouteServerPeers(ctx context.Context, nodes []platfo
 		}
 	}
 
+	managed := 0
+	for az, endpointIDs := range p.endpointsByAZ {
+		managed += len(endpointIDs) * len(nodesByAZ[az])
+	}
+	awsPeersManaged.Set(float64(managed))
 	return nil
 }
 
@@ -126,6 +131,7 @@ func (p *Platform) listAllPeers(ctx context.Context, endpointID string) ([]ec2ty
 			NextToken: nextToken,
 		})
 		if err != nil {
+			recordAWSAPIError(opPeer)
 			return nil, err
 		}
 		for _, peer := range output.RouteServerPeers {
@@ -156,6 +162,9 @@ func (p *Platform) tagPeer(ctx context.Context, peerID string) error {
 		Tags:      p.peerTags(),
 	}
 	_, err := p.ec2Client.CreateTags(ctx, input)
+	if err != nil {
+		recordAWSAPIError(opPeer)
+	}
 	return err
 }
 
@@ -178,6 +187,9 @@ func (p *Platform) createPeer(ctx context.Context, endpointID, peerAddress strin
 		},
 	}
 	_, err := p.ec2Client.CreateRouteServerPeer(ctx, input)
+	if err != nil {
+		recordAWSAPIError(opPeer)
+	}
 	return err
 }
 
@@ -186,6 +198,9 @@ func (p *Platform) deletePeer(ctx context.Context, peerID string) error {
 		RouteServerPeerId: aws.String(peerID),
 	}
 	_, err := p.ec2Client.DeleteRouteServerPeer(ctx, input)
+	if err != nil {
+		recordAWSAPIError(opPeer)
+	}
 	return err
 }
 
@@ -225,5 +240,6 @@ func (p *Platform) deleteAllManagedPeers(ctx context.Context) error {
 			}
 		}
 	}
+	awsPeersManaged.Set(0)
 	return nil
 }
