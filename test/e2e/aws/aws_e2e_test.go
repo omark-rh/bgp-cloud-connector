@@ -385,8 +385,8 @@ var _ = Describe("AWS E2E", Ordered, func() {
 				g.Expect(err).To(HaveOccurred(), "config CR should be gone")
 			}).WithTimeout(reconcileTimeout).WithPolling(pollInterval).Should(Succeed())
 
-			By("verifying Network/cluster FRR patch was not reverted on config delete")
-			Expect(e2e.CheckNetworkFRREnabled(ctx, k8sClient)).To(Succeed())
+			By("verifying external Network/cluster state was not reverted on config delete")
+			Expect(e2e.CheckExternalNetworkStatePreserved(ctx, k8sClient)).To(Succeed())
 
 			By("verifying AWS peers are deleted")
 			Eventually(func(g Gomega) {

@@ -119,7 +119,7 @@ func EnsureFRRConfigurationsFromGroups(
 		client.InNamespace(FRRNamespace),
 		client.MatchingLabels{LabelManagedBy: LabelManagedByVal},
 	); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("listing managed FRRConfigurations in %s: %w", FRRNamespace, err)
 	}
 	for i := range list.Items {
 		if !ownedFRRConfiguration(&list.Items[i], config) {
@@ -225,14 +225,15 @@ func DeleteFRRConfigurations(ctx context.Context, c client.Client, config *netwo
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(FRRConfigurationGVK)
 	if err := c.List(ctx, list, client.InNamespace(FRRNamespace)); err != nil {
-		return err
+		return fmt.Errorf("listing FRRConfigurations in %s: %w", FRRNamespace, err)
 	}
 	for i := range list.Items {
 		if !ownedFRRConfiguration(&list.Items[i], config) {
 			continue
 		}
 		if err := c.Delete(ctx, &list.Items[i]); err != nil && !apierrors.IsNotFound(err) {
-			return err
+			return fmt.Errorf("deleting FRRConfiguration %s/%s: %w",
+				list.Items[i].GetNamespace(), list.Items[i].GetName(), err)
 		}
 	}
 	return nil
@@ -249,7 +250,7 @@ func foreignFRRConfigurations(ctx context.Context, c client.Client, config *netw
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(FRRConfigurationGVK)
 	if err := c.List(ctx, list); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("listing FRRConfigurations: %w", err)
 	}
 	names := make([]string, 0, len(list.Items))
 	for i := range list.Items {
@@ -353,9 +354,14 @@ func createOrUpdate(ctx context.Context, c client.Client, obj *unstructured.Unst
 
 	if err := c.Get(ctx, key, existing); err != nil {
 		if apierrors.IsNotFound(err) {
-			return c.Create(ctx, obj)
+			if err := c.Create(ctx, obj); err != nil {
+				return fmt.Errorf("creating %s %s/%s: %w",
+					obj.GetKind(), obj.GetNamespace(), obj.GetName(), err)
+			}
+			return nil
 		}
-		return err
+		return fmt.Errorf("getting existing %s %s/%s: %w",
+			obj.GetKind(), obj.GetNamespace(), obj.GetName(), err)
 	}
 
 	if !canAdopt(existing, obj, adoptable) {
@@ -370,7 +376,8 @@ func createOrUpdate(ctx context.Context, c client.Client, obj *unstructured.Unst
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if err := c.Get(ctx, key, existing); err != nil {
-			return err
+			return fmt.Errorf("refreshing existing %s %s/%s: %w",
+				obj.GetKind(), obj.GetNamespace(), obj.GetName(), err)
 		}
 		if !canAdopt(existing, obj, adoptable) {
 			return adoptionRefusedError(obj)
@@ -378,7 +385,11 @@ func createOrUpdate(ctx context.Context, c client.Client, obj *unstructured.Unst
 		obj.SetResourceVersion(existing.GetResourceVersion())
 		obj.SetLabels(mergeLabels(existing.GetLabels(), obj.GetLabels()))
 		obj.SetAnnotations(mergeLabels(existing.GetAnnotations(), obj.GetAnnotations()))
-		return c.Update(ctx, obj)
+		if err := c.Update(ctx, obj); err != nil {
+			return fmt.Errorf("updating %s %s/%s: %w",
+				obj.GetKind(), obj.GetNamespace(), obj.GetName(), err)
+		}
+		return nil
 	})
 }
 

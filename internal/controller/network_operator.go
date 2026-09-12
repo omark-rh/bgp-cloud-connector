@@ -41,7 +41,7 @@ func getNetworkCluster(ctx context.Context, c client.Client) (*unstructured.Unst
 		if apierrors.IsNotFound(err) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("getting Network/cluster: %w", err)
 	}
 	return network, nil
 }
@@ -147,7 +147,7 @@ func PatchNetworkOperator(ctx context.Context, c client.Client, network *unstruc
 			"spec":     spec,
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("building Network/cluster patch: %w", err)
 		}
 		target := &unstructured.Unstructured{}
 		target.SetGroupVersionKind(NetworkGVK)
@@ -230,7 +230,7 @@ func UnpatchNetworkOperator(ctx context.Context, c client.Client, removeFRRProvi
 			"spec":     spec,
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("building Network/cluster unpatch: %w", err)
 		}
 
 		target := &unstructured.Unstructured{}

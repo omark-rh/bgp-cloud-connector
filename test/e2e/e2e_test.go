@@ -247,8 +247,8 @@ var _ = Describe("E2E", Ordered, func() {
 				g.Expect(err).To(HaveOccurred(), "config CR should be gone")
 			}).WithTimeout(reconcileTimeout).WithPolling(pollInterval).Should(Succeed())
 
-			By("verifying Network/cluster FRR patch was not reverted on config delete")
-			Expect(CheckNetworkFRREnabled(ctx, k8sClient)).To(Succeed())
+			By("verifying external Network/cluster state was not reverted on config delete")
+			Expect(CheckExternalNetworkStatePreserved(ctx, k8sClient)).To(Succeed())
 
 			By("verifying FRRConfigurations are deleted")
 			azCount := len(bgpConfig.Spec.BGP.PeerGroups)

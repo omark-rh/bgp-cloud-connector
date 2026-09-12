@@ -139,7 +139,7 @@ func (r *BGPCloudConfigurationReconciler) reconcileNetworkOperatorPatch(
 				// on deletion. Both errors go out; recovering needs a human.
 				return true, ctrl.Result{}, fmt.Errorf("persisting Network/cluster ownership: %w (also failed to revert Network operator patch: %v)", err, revertErr)
 			}
-			return true, ctrl.Result{}, err
+			return true, ctrl.Result{}, fmt.Errorf("persisting Network/cluster ownership: %w", err)
 		}
 	}
 	meta.SetStatusCondition(&config.Status.Conditions, metav1.Condition{
@@ -670,7 +670,7 @@ func (r *BGPCloudConfigurationReconciler) reconcileDelete(ctx context.Context, c
 
 	log.Info("cleaning up FRR configurations")
 	if err := DeleteFRRConfigurations(ctx, r.Client, config); err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, fmt.Errorf("deleting FRR configurations: %w", err)
 	}
 
 	// Revert the Network/cluster fields marked Owned. Fields marked External were

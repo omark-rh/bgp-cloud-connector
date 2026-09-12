@@ -50,7 +50,7 @@ const (
 func CheckConfigNetworkOwnershipExternal(ctx context.Context, c client.Client, configName string) error {
 	cfg := &networkingapi.BGPCloudConfiguration{}
 	if err := c.Get(ctx, types.NamespacedName{Name: configName}, cfg); err != nil {
-		return err
+		return fmt.Errorf("getting BGPCloudConfiguration %q: %w", configName, err)
 	}
 	if cfg.Status.FRRProviderOwnership != networkingapi.NetworkPatchOwnershipExternal {
 		return fmt.Errorf("FRRProviderOwnership = %q, want External (FRR was pre-enabled; operator must not claim Owned)",
@@ -64,20 +64,21 @@ func CheckConfigNetworkOwnershipExternal(ctx context.Context, c client.Client, c
 	return nil
 }
 
-// CheckNetworkFRREnabled returns an error unless Network/cluster still lists FRR
-// and has route advertisements Enabled. After BGPCloudConfiguration delete the operator
-// must not unpatch externally pre-enabled Network state.
-func CheckNetworkFRREnabled(ctx context.Context, c client.Client) error {
+// CheckExternalNetworkStatePreserved returns an error unless Network/cluster
+// still lists FRR and has routeAdvertisements Enabled. After
+// BGPCloudConfiguration delete the operator must not unpatch externally
+// pre-enabled Network state.
+func CheckExternalNetworkStatePreserved(ctx context.Context, c client.Client) error {
 	network := &unstructured.Unstructured{}
 	network.SetGroupVersionKind(NetworkOperatorGVK)
 	if err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, network); err != nil {
-		return err
+		return fmt.Errorf("getting Network/cluster: %w", err)
 	}
 
 	providers, _, err := unstructured.NestedStringSlice(network.Object,
 		"spec", "additionalRoutingCapabilities", "providers")
 	if err != nil {
-		return err
+		return fmt.Errorf("reading Network/cluster additionalRoutingCapabilities.providers: %w", err)
 	}
 	if !slices.Contains(providers, networkFRRProviderName) {
 		return fmt.Errorf("network/cluster providers %v missing FRR after BGPCloudConfiguration delete", providers)
@@ -86,7 +87,7 @@ func CheckNetworkFRREnabled(ctx context.Context, c client.Client) error {
 	ra, _, err := unstructured.NestedString(network.Object,
 		"spec", "defaultNetwork", "ovnKubernetesConfig", "routeAdvertisements")
 	if err != nil {
-		return err
+		return fmt.Errorf("reading Network/cluster defaultNetwork.ovnKubernetesConfig.routeAdvertisements: %w", err)
 	}
 	if ra != networkRouteAdsEnabledValue {
 		return fmt.Errorf("routeAdvertisements = %q, want Enabled after BGPCloudConfiguration delete", ra)
